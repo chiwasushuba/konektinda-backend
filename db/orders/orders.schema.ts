@@ -1,0 +1,45 @@
+import {
+  integer,
+  pgTable,
+  varchar,
+  decimal,
+  timestamp,
+} from 'drizzle-orm/pg-core';
+import { users } from '../users/users.schema';
+import { payments } from '../payments/payments.schema';
+import { orderStatuses } from 'db/enums';
+import { InferSelectModel, InferInsertModel, relations } from 'drizzle-orm';
+import { order_addresses } from './order_addresses.schema';
+
+export const orders = pgTable('orders', {
+  order_id: integer('order_id').primaryKey().generatedAlwaysAsIdentity(),
+  user_id: integer('user_id')
+    .references(() => users.user_id)
+    .notNull(),
+  grand_total: decimal('grand_total', {
+    precision: 10,
+    scale: 2,
+    mode: 'number',
+  }).notNull(), // Calculated from all supplier orders
+  payment_id: varchar('payment_id', { length: 100 })
+    .references(() => payments.ref_num)
+    .notNull()
+    .unique(),
+  status: orderStatuses().notNull().default('PENDING'),
+  order_date: timestamp('order_date').notNull().defaultNow(),
+});
+
+export const ordersRelations = relations(orders, ({ one }) => ({
+  user: one(users, {
+    fields: [orders.user_id],
+    references: [users.user_id],
+  }),
+  payment: one(payments, {
+    fields: [orders.payment_id],
+    references: [payments.ref_num],
+  }),
+  address: one(order_addresses),
+}));
+
+export type Order = InferSelectModel<typeof orders>;
+export type NewOrder = InferInsertModel<typeof orders>;
